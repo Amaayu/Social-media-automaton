@@ -166,18 +166,24 @@ if (process.env.NODE_ENV === 'production') {
   });
   
   // Handle React routing - return all non-API requests to React app
-  app.get('*', (req, res) => {
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
     res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
   });
 }
 
-// 404 handler for API routes
-app.use('/api/*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'API endpoint not found',
-    path: req.path
-  });
+// 404 handler for API routes that weren't matched
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({
+      success: false,
+      error: 'API endpoint not found',
+      path: req.path
+    });
+  }
+  next();
 });
 
 // Global error handler
