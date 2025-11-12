@@ -1,0 +1,32 @@
+# Docker Compose using pre-built image from Docker Hub
+# Usage: docker compose -f docker-compose.hub.yml up -d
+
+services:
+  app:
+    image: yourusername/instagram-automation:latest
+    container_name: instagram-automation
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - MONGODB_URI=${MONGODB_URI}
+      - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS:-30}
+      - MAX_COMMENTS_PER_CHECK=${MAX_COMMENTS_PER_CHECK:-10}
+    volumes:
+      # Persist storage data
+      - ./server/storage:/app/server/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Note: Replace 'yourusername' with your actual Docker Hub username
+# Example: image: johndoe/instagram-automation:latest

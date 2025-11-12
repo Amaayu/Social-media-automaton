@@ -1,0 +1,330 @@
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+
+// Import database
+const database = require('./config/database');
+
+// Import controllers
+const ConfigController = require('./controllers/config.controller');
+const AutomationController = require('./controllers/automation.controller');
+const LogsController = require('./controllers/logs.controller');
+
+// Import routes
+const authRoutes = require('./routes/auth.routes');
+const credentialsRoutes = require('./routes/credentials.routes');
+const postsRoutes = require('./routes/posts.routes');
+
+// Import middleware
+const { authMiddleware } = require('./middleware/auth.middleware');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Initialize controllers
+const configController = new ConfigController();
+const automationController = new AutomationController();
+const logsController = new LogsController();
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
+
+// CORS middleware for development
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // Allow both 5173 and 5174 (or any localhost port in development)
+  if (origin && origin.startsWith('http://localhost:')) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
+// ============================================
+// API Routes
+// ============================================
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    database: database.isConnected() ? 'connected' : 'disconnected', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// ============================================
+// Authentication Routes (MongoDB-based)
+// ============================================
+app.use('/api/auth', authRoutes);
+
+// ============================================
+// Multi-Tenant Credentials Routes (Protected)
+// ============================================
+app.use('/api/credentials', authMiddleware, credentialsRoutes);
+
+// ============================================
+// Posts Routes (Protected)
+// ============================================
+app.use('/api/posts', authMiddleware, postsRoutes);
+
+// ============================================
+// Configuration Routes (Protected)
+// ============================================
+
+// Instagram credentials
+app.post('/api/config/instagram', authMiddleware, (req, res) => {
+  configController.saveInstagramCredentials(req, res);
+});
+
+app.get('/api/config/instagram', authMiddleware, (req, res) => {
+  configController.getInstagramConfig(req, res);
+});
+
+app.delete('/api/config/instagram', authMiddleware, (req, res) => {
+  configController.deleteInstagramCredentials(req, res);
+});
+
+// Reply tone
+app.post('/api/config/tone', authMiddleware, async (req, res) => {
+  await configController.setReplyTone(req, res);
+  
+  // Update automation workflow if running
+  if (req.body.tone) {
+    automationController.updateAutomationConfig({ replyTone: req.body.tone });
+  }
+});
+
+app.get('/api/config/tone', authMiddleware, (req, res) => {
+  configController.getReplyTone(req, res);
+});
+
+// API key validation
+app.post('/api/config/validate-api-key', authMiddleware, (req, res) => {
+  configController.validateApiKey(req, res);
+});
+
+// ============================================
+// Automation Control Routes (Protected)
+// ============================================
+
+app.post('/api/automation/start', authMiddleware, (req, res) => {
+  automationController.startAutomation(req, res);
+});
+
+app.post('/api/automation/stop', authMiddleware, (req, res) => {
+  automationController.stopAutomation(req, res);
+});
+
+app.get('/api/automation/status', authMiddleware, (req, res) => {
+  automationController.getAutomationStatus(req, res);
+});
+
+// ============================================
+// Logs Routes (Protected)
+// ============================================
+
+app.get('/api/logs', authMiddleware, (req, res) => {
+  logsController.getLogs(req, res);
+});
+
+app.get('/api/logs/export', authMiddleware, (req, res) => {
+  logsController.exportLogs(req, res);
+});
+
+app.delete('/api/logs', authMiddleware, (req, res) => {
+  logsController.clearLogs(req, res);
+});
+
+// ============================================
+// Serve Frontend in Production
+// ============================================
+
+if (process.env.NODE_ENV === 'production') {
+  // Serve static files from the React app build
+  app.use(express.static(path.join(__dirname, '../client/dist')));
+  
+  // Handle React routing - return all non-API requests to React app
+  app.use((req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    // Serve index.html for all other routes (SPA routing)
+    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
+  });
+} else {
+  // 404 handler for development (API only)
+  app.use((req, res) => {
+    res.status(404).json({
+      success: false,
+      error: 'Endpoint not found',
+      path: req.path
+    });
+  });
+}
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+// ============================================
+// Server Startup
+// ============================================
+
+// Validate required environment variables
+async function validateEnvironment() {
+  const { ValidationService } = require('./services/encryption.service');
+  const AIReplyService = require('./services/ai-reply.service');
+  
+  // Check required variables
+  const required = ['ENCRYPTION_KEY'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    console.error(`Missing required environment variables: ${missing.join(', ')}`);
+    console.error('Please check your .env file');
+    process.exit(1);
+  }
+  
+  // Validate ENCRYPTION_KEY format
+  try {
+    const keyBuffer = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
+    if (keyBuffer.length !== 32) {
+      console.error('ENCRYPTION_KEY must be 32 bytes (64 hex characters)');
+      console.error('Generate a key using: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error('Invalid ENCRYPTION_KEY format. Must be a hex string.');
+    console.error('Generate a key using: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    process.exit(1);
+  }
+  
+  // Check and validate Gemini API key
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn('⚠️  Warning: GEMINI_API_KEY not set. Automation will not work until configured.');
+    console.warn('   Get your free API key from: https://makersuite.google.com/app/apikey');
+  } else {
+    try {
+      // Validate API key format
+      ValidationService.validateGeminiApiKey(process.env.GEMINI_API_KEY);
+      console.log('✓ Gemini API key format is valid');
+      
+      // Test API key by making a real request
+      console.log('⏳ Validating Gemini API key...');
+      const validation = await AIReplyService.validateApiKey(process.env.GEMINI_API_KEY);
+      
+      if (validation.valid) {
+        console.log('✓ Gemini API key validated successfully');
+      } else {
+        console.error(`✗ Gemini API key validation failed: ${validation.error}`);
+        console.error('  Automation will not work until a valid API key is configured.');
+      }
+    } catch (error) {
+      console.error(`✗ Gemini API key format error: ${error.message}`);
+      console.error('  Please check your API key and try again.');
+    }
+  }
+}
+
+// Initialize automation state on startup
+async function initializeAutomation() {
+  try {
+    // Skip auto-initialization on startup
+    // Automation will be started manually by authenticated users
+    console.log('[Server] Automation will be started manually by users');
+  } catch (error) {
+    console.error('[Server] Error during automation initialization:', error.message);
+  }
+}
+
+// Start server
+app.listen(PORT, async () => {
+  // Connect to MongoDB
+  try {
+    await database.connect();
+  } catch (error) {
+    console.error('Failed to connect to MongoDB. Server will continue but database features will not work.');
+  }
+  
+  // Validate environment variables (including API key test)
+  await validateEnvironment();
+  console.log('='.repeat(50));
+  console.log('Instagram Comment Automation Server');
+  console.log('='.repeat(50));
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`API Base URL: http://localhost:${PORT}/api`);
+  console.log('='.repeat(50));
+  console.log('\nAvailable Endpoints:');
+  console.log('  GET    /api/health');
+  console.log('  POST   /api/config/instagram');
+  console.log('  GET    /api/config/instagram');
+  console.log('  DELETE /api/config/instagram');
+  console.log('  POST   /api/config/tone');
+  console.log('  GET    /api/config/tone');
+  console.log('  POST   /api/config/validate-api-key');
+  console.log('  POST   /api/automation/start');
+  console.log('  POST   /api/automation/stop');
+  console.log('  GET    /api/automation/status');
+  console.log('  GET    /api/logs');
+  console.log('  GET    /api/logs/export');
+  console.log('  DELETE /api/logs');
+  console.log('='.repeat(50));
+  
+  // Initialize automation state after server starts
+  await initializeAutomation();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  
+  // Stop automation if running
+  if (automationController.automationWorkflow) {
+    await automationController.stopAutomation({ body: {} }, { 
+      json: () => {},
+      status: () => ({ json: () => {} })
+    });
+  }
+  
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('\nSIGINT received, shutting down gracefully...');
+  
+  // Stop automation if running
+  if (automationController.automationWorkflow) {
+    await automationController.stopAutomation({ body: {} }, { 
+      json: () => {},
+      status: () => ({ json: () => {} })
+    });
+  }
+  
+  process.exit(0);
+});
