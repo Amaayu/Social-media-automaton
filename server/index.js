@@ -157,28 +157,28 @@ app.delete('/api/logs', authMiddleware, (req, res) => {
 // ============================================
 
 if (process.env.NODE_ENV === 'production') {
-  // Serve static files from the React app build
-  app.use(express.static(path.join(__dirname, '../client/dist')));
-  
-  // Handle React routing - return all non-API requests to React app
+  // Serve static files from the React app build (but not for API routes)
   app.use((req, res, next) => {
-    // Skip API routes
     if (req.path.startsWith('/api')) {
       return next();
     }
-    // Serve index.html for all other routes (SPA routing)
+    express.static(path.join(__dirname, '../client/dist'))(req, res, next);
+  });
+  
+  // Handle React routing - return all non-API requests to React app
+  app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
   });
-} else {
-  // 404 handler for development (API only)
-  app.use((req, res) => {
-    res.status(404).json({
-      success: false,
-      error: 'Endpoint not found',
-      path: req.path
-    });
-  });
 }
+
+// 404 handler for API routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'API endpoint not found',
+    path: req.path
+  });
+});
 
 // Global error handler
 app.use((err, req, res, next) => {
