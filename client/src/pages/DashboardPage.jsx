@@ -14,8 +14,13 @@ const DashboardPage = () => {
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
+    if (userData && userData !== 'undefined') {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (error) {
+        console.error('Failed to parse user data:', error);
+        localStorage.removeItem('user');
+      }
     }
   }, []);
 
@@ -150,6 +155,12 @@ const DashboardPage = () => {
               >
                 Logs
               </button>
+              <button
+                onClick={() => navigate('/ai-post')}
+                className="whitespace-nowrap py-4 px-1 border-b-2 border-transparent text-purple-600 hover:text-purple-700 hover:border-purple-300 font-medium text-sm transition flex items-center gap-2"
+              >
+                <span>🤖</span> AI Post Generator
+              </button>
             </nav>
 
             {/* Mobile Tabs */}
@@ -183,6 +194,12 @@ const DashboardPage = () => {
                 } flex-1 min-w-fit py-3 px-3 border-b-2 font-medium text-xs transition`}
               >
                 Logs
+              </button>
+              <button
+                onClick={() => navigate('/ai-post')}
+                className="flex-1 min-w-fit py-3 px-3 border-b-2 border-transparent text-purple-600 font-medium text-xs transition"
+              >
+                🤖 AI Post
               </button>
             </nav>
           </div>

@@ -124,7 +124,8 @@ class AutomationWorkflow {
    */
   async detectCommentsNode(state) {
     try {
-      console.log('[AutomationWorkflow] Detecting new comments...');
+      console.log('[AutomationWorkflow] ========== Starting Comment Detection ==========');
+      console.log('[AutomationWorkflow] Current time:', new Date().toISOString());
       
       // Update last check time
       state.lastCheckTime = new Date();
@@ -140,8 +141,10 @@ class AutomationWorkflow {
           { operation: 'getAccountPosts', node: 'detectComments' }
         );
         posts = allPosts.filter(post => this.selectedPostIds.includes(post.id));
+        console.log(`[AutomationWorkflow] Found ${posts.length} matching posts from ${allPosts.length} total posts`);
       } else {
         // Get recent posts from the authenticated user with error handling
+        console.log('[AutomationWorkflow] Fetching recent posts (no specific posts selected)...');
         posts = await this.errorHandler.executeWithRetry(
           () => this.instagramService.getAccountPosts(5),
           { operation: 'getAccountPosts', node: 'detectComments' }
@@ -161,9 +164,13 @@ class AutomationWorkflow {
             { operation: 'getRecentComments', node: 'detectComments', postId: post.id }
           );
           
+          console.log(`[AutomationWorkflow] Retrieved ${comments.length} comments from post ${post.id}`);
+          
           // Filter out already processed comments
           for (const comment of comments) {
             const isProcessed = await this.storageService.isCommentProcessed(comment.id);
+            
+            console.log(`[AutomationWorkflow] Comment ${comment.id} from @${comment.username}: "${comment.text.substring(0, 50)}..." - Processed: ${isProcessed}`);
             
             // Graph API doesn't return replies in the main comments list, so all are top-level
             if (!isProcessed) {
@@ -336,15 +343,20 @@ class AutomationWorkflow {
       console.log(`[AutomationWorkflow] Posting reply to comment ${comment.id}`);
 
       // Post the reply to Instagram with error handling and retry
-      // Graph API replyToComment only needs commentId and text (not postId)
-      await this.errorHandler.executeWithRetry(
-        () => this.instagramService.replyToComment(comment.id, reply),
+      // Use smart reply: tries public first, falls back to private if needed
+      const replyResult = await this.errorHandler.executeWithRetry(
+        () => this.instagramService.replyToCommentSmart(comment.id, reply),
         {
           operation: 'replyToComment',
           node: 'postReply',
           commentId: comment.id
         }
       );
+
+      // Log the type of reply that was sent
+      const replyType = replyResult?.type || 'public';
+      const replyTypeDisplay = replyType === 'private' ? 'private message' : 'public reply';
+      console.log(`[AutomationWorkflow] Successfully posted ${replyTypeDisplay}`);
 
       // Mark comment as processed
       await this.storageService.markCommentProcessed(comment.id);
@@ -358,12 +370,13 @@ class AutomationWorkflow {
       // Log successful reply posting
       await this.storageService.appendLog({
         type: 'reply_posted',
-        message: `Reply posted to comment from @${comment.username}`,
+        message: `${replyType === 'private' ? 'Private reply' : 'Public reply'} posted to comment from @${comment.username}`,
         details: {
           commentId: comment.id,
           postId: comment.postId,
           username: comment.username,
-          reply: reply
+          reply: reply,
+          replyType: replyType
         }
       });
 
@@ -605,7 +618,11 @@ class AutomationWorkflow {
       // Update state with result
       this.state = { ...this.state, ...result };
 
+      // Persist state after each cycle
+      await this.persistState();
+
       console.log('[AutomationWorkflow] Workflow cycle completed');
+      console.log(`[AutomationWorkflow] Stats: ${JSON.stringify(this.state.stats)}`);
     } catch (error) {
       console.error('[AutomationWorkflow] Error executing workflow cycle:', error.message);
       

@@ -2,6 +2,8 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
+const http = require('http');
+const { Server } = require('socket.io');
 
 // Import database
 const database = require('./config/database');
@@ -15,12 +17,31 @@ const LogsController = require('./controllers/logs.controller');
 const authRoutes = require('./routes/auth.routes');
 const credentialsRoutes = require('./routes/credentials.routes');
 const postsRoutes = require('./routes/posts.routes');
+const aiPostRoutes = require('./routes/ai-post.routes');
 
 // Import middleware
 const { authMiddleware } = require('./middleware/auth.middleware');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      // Allow localhost with any port in development
+      if (!origin || origin.startsWith('http://localhost:')) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
+    credentials: true
+  }
+});
+
 const PORT = process.env.PORT || 3000;
+
+// Make io accessible to controllers
+app.set('io', io);
 
 // Initialize controllers
 const configController = new ConfigController();
@@ -83,6 +104,11 @@ app.use('/api/credentials', authMiddleware, credentialsRoutes);
 // Posts Routes (Protected)
 // ============================================
 app.use('/api/posts', authMiddleware, postsRoutes);
+
+// ============================================
+// AI Post Generation Routes (Protected)
+// ============================================
+app.use('/api/ai-post', authMiddleware, aiPostRoutes);
 
 // ============================================
 // Configuration Routes (Protected)
@@ -268,8 +294,21 @@ async function initializeAutomation() {
   }
 }
 
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`[Socket.IO] Client connected: ${socket.id}`);
+  
+  socket.on('disconnect', () => {
+    console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
+  });
+  
+  socket.on('error', (error) => {
+    console.error(`[Socket.IO] Socket error:`, error);
+  });
+});
+
 // Start server
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
   // Connect to MongoDB
   try {
     await database.connect();
@@ -283,6 +322,7 @@ app.listen(PORT, async () => {
   console.log('Instagram Comment Automation Server');
   console.log('='.repeat(50));
   console.log(`Server running on port ${PORT}`);
+  console.log(`WebSocket Server: ws://localhost:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`API Base URL: http://localhost:${PORT}/api`);
   console.log('='.repeat(50));

@@ -192,25 +192,28 @@ class AutomationController {
         return res.json({
           success: true,
           isRunning: false,
-          lastCheckTime: null,
-          stats: {
-            commentsDetected: 0,
-            repliesGenerated: 0,
-            repliesPosted: 0,
-            errorCount: 0
-          },
+          lastCheck: null,
+          commentsProcessed: 0,
+          errors: 0,
           pendingCommentsCount: 0,
           processedCommentsCount: 0,
-          errorCount: 0,
           isProcessing: false
         });
       }
 
       const status = this.automationWorkflow.getState();
 
+      // Map backend fields to frontend expected fields
       res.json({
         success: true,
-        ...status
+        isRunning: status.isRunning,
+        lastCheck: status.lastCheckTime,
+        commentsProcessed: status.stats?.repliesPosted || 0,
+        errors: status.stats?.errorCount || 0,
+        pendingCommentsCount: status.pendingCommentsCount || 0,
+        processedCommentsCount: status.processedCommentsCount || 0,
+        isProcessing: status.isProcessing || false,
+        stats: status.stats // Keep full stats for debugging
       });
     } catch (error) {
       console.error('Error getting automation status:', error);

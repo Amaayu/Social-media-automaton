@@ -20,10 +20,8 @@ class Database {
         throw new Error('MONGODB_URI environment variable is not set');
       }
 
-      // Connection options
+      // Connection options (removed deprecated options)
       const options = {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 5000,
         socketTimeoutMS: 45000,

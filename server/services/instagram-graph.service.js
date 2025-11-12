@@ -141,7 +141,7 @@ class InstagramGraphService {
   }
 
   /**
-   * Reply to a comment
+   * Reply to a comment (public threaded reply)
    * @param {string} commentId - Comment ID to reply to
    * @param {string} text - Reply text
    */
@@ -168,10 +168,84 @@ class InstagramGraphService {
         }
       );
       
-      console.log(`[InstagramGraphService] Successfully replied to comment ${commentId}`);
-      return response.data;
+      console.log(`[InstagramGraphService] Successfully posted public reply to comment ${commentId}`);
+      return { success: true, type: 'public', data: response.data };
     } catch (error) {
       throw new Error(`Failed to post reply: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Send a private reply to a commenter (goes to their inbox)
+   * @param {string} commentId - Comment ID to reply to
+   * @param {string} message - Message text
+   */
+  async sendPrivateReply(commentId, message) {
+    this._ensureAuthenticated();
+    
+    if (!message || message.trim().length === 0) {
+      throw new Error('Message text cannot be empty');
+    }
+    
+    if (message.length > 1000) {
+      throw new Error('Private reply text exceeds Instagram character limit (1000)');
+    }
+    
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/${commentId}/private_replies`,
+        null,
+        {
+          params: {
+            access_token: this.accessToken,
+            message: message.trim()
+          }
+        }
+      );
+      
+      console.log(`[InstagramGraphService] Successfully sent private reply for comment ${commentId}`);
+      return { success: true, type: 'private', data: response.data };
+    } catch (error) {
+      throw new Error(`Failed to send private reply: ${error.response?.data?.error?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Smart reply: Try public reply first, fallback to private reply if it fails
+   * This handles both public and private account commenters
+   * @param {string} commentId - Comment ID to reply to
+   * @param {string} text - Reply text
+   */
+  async replyToCommentSmart(commentId, text) {
+    this._ensureAuthenticated();
+    
+    if (!text || text.trim().length === 0) {
+      throw new Error('Reply text cannot be empty');
+    }
+    
+    // Try public reply first
+    try {
+      const result = await this.replyToComment(commentId, text);
+      console.log(`[InstagramGraphService] Public reply successful for comment ${commentId}`);
+      return result;
+    } catch (publicError) {
+      console.log(`[InstagramGraphService] Public reply failed for comment ${commentId}: ${publicError.message}`);
+      console.log(`[InstagramGraphService] Attempting private reply...`);
+      
+      // If public reply fails, try private reply
+      try {
+        // Truncate message if needed for private reply (1000 char limit vs 2200)
+        const privateMessage = text.length > 1000 ? text.substring(0, 997) + '...' : text;
+        const result = await this.sendPrivateReply(commentId, privateMessage);
+        console.log(`[InstagramGraphService] Private reply successful for comment ${commentId}`);
+        return result;
+      } catch (privateError) {
+        // Both failed, throw combined error
+        throw new Error(
+          `Failed to reply (tried both public and private): ` +
+          `Public: ${publicError.message}; Private: ${privateError.message}`
+        );
+      }
     }
   }
 

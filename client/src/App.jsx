@@ -4,7 +4,9 @@ import ToastContainer from './components/ToastContainer'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
+import AIPostPage from './pages/AIPostPage'
 import ProtectedRoute from './components/ProtectedRoute'
+import TestSocketIO from './components/TestSocketIO'
 
 function App() {
   const { toast } = useApp()
@@ -25,6 +27,25 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/ai-post"
+          element={
+            <ProtectedRoute>
+              <AIPostPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Test Socket.IO */}
+        <Route
+          path="/test-socket"
+          element={
+            <ProtectedRoute>
+              <TestSocketIO />
             </ProtectedRoute>
           }
         />

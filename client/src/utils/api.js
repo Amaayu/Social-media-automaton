@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: '/api',
-  timeout: 10000,
+  baseURL: '', // Empty - Vite proxy handles /api prefix
+  timeout: 60000, // 60 seconds for AI operations
   headers: {
     'Content-Type': 'application/json',
   },
@@ -71,28 +71,38 @@ api.interceptors.response.use(
 
 // API methods
 export const configAPI = {
-  saveInstagramConfig: (data) => api.post('/config/instagram', data),
-  getInstagramConfig: () => api.get('/config/instagram'),
-  deleteInstagramConfig: () => api.delete('/config/instagram'),
-  saveTone: (tone) => api.post('/config/tone', { tone }),
-  getTone: () => api.get('/config/tone'),
-  validateApiKey: (apiKey) => api.post('/config/validate-api-key', { apiKey }),
+  saveInstagramConfig: (data) => api.post('/api/config/instagram', data),
+  getInstagramConfig: () => api.get('/api/config/instagram'),
+  deleteInstagramConfig: () => api.delete('/api/config/instagram'),
+  saveTone: (tone) => api.post('/api/config/tone', { tone }),
+  getTone: () => api.get('/api/config/tone'),
+  validateApiKey: (apiKey) => api.post('/api/config/validate-api-key', { apiKey }),
 };
 
 export const automationAPI = {
-  start: () => api.post('/automation/start'),
-  stop: () => api.post('/automation/stop'),
-  getStatus: () => api.get('/automation/status'),
+  start: () => api.post('/api/automation/start'),
+  stop: () => api.post('/api/automation/stop'),
+  getStatus: () => api.get('/api/automation/status'),
 };
 
 export const logsAPI = {
-  getLogs: (params) => api.get('/logs', { params }),
-  exportLogs: () => api.get('/logs/export'),
-  clearLogs: () => api.delete('/logs'),
+  getLogs: (params) => api.get('/api/logs', { params }),
+  exportLogs: () => api.get('/api/logs/export'),
+  clearLogs: () => api.delete('/api/logs'),
 };
 
 export const healthAPI = {
-  check: () => api.get('/health'),
+  check: () => api.get('/api/health'),
+};
+
+export const aiPostAPI = {
+  generate: (data) => api.post('/api/ai-post/generate', data, { timeout: 120000 }), // 120 seconds (2 minutes) for AI generation + publishing
+  getHistory: () => api.get('/api/ai-post/history'), // Correct endpoint
+  getStatus: () => api.get('/api/ai-post/status'),
+  getLimit: () => api.get('/api/ai-post/limit'),
+  saveContext: (data) => api.post('/api/ai-post/context', data),
+  getContext: () => api.get('/api/ai-post/context'),
+  deletePost: (postId) => api.delete(`/api/ai-post/posts/${postId}`),
 };
 
 export default api;

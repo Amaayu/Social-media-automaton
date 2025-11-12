@@ -24,6 +24,7 @@ See [INSTAGRAM_API_SETUP.md](./INSTAGRAM_API_SETUP.md) for complete setup instru
 
 ## ✨ Features
 
+### Comment Automation
 - ✅ **Multi-user authentication system** - Secure JWT-based authentication
 - ✅ **MongoDB Atlas cloud database** - Scalable cloud storage
 - ✅ **Automatic comment detection** - Real-time monitoring of Instagram posts
@@ -34,6 +35,18 @@ See [INSTAGRAM_API_SETUP.md](./INSTAGRAM_API_SETUP.md) for complete setup instru
 - ✅ **Responsive design** - Works on desktop and mobile
 - ✅ **Docker support** - Easy deployment with Docker
 - ✅ **Updated for latest Instagram Graph API (v21.0)**
+
+### 🤖 NEW: AI Post Generator
+- ✨ **Automated content creation** - Generate engaging posts with AI
+- 🎨 **AI image generation** - Create professional images automatically
+- 📝 **Smart captions & hashtags** - AI-powered content optimization
+- 📱 **Direct Instagram publishing** - Publish posts automatically
+- 📊 **Post history & analytics** - Track all generated content
+- 🎯 **Brand voice customization** - Match your unique style
+
+🚀 **[START HERE](./START_HERE_AI_POST.md)** - Get your first post in 5 minutes!
+
+📚 **Documentation**: [Quick Start](./QUICK_START_AI_POST.md) | [Full Guide](./AI_POST_GENERATOR_GUIDE.md) | [Comet API Setup](./COMET_API_SETUP.md) | [Flow Diagram](./AI_POST_FLOW_DIAGRAM.md)
 
 ---
 
