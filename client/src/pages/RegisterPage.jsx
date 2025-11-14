@@ -55,11 +55,15 @@ const RegisterPage = () => {
 
       if (data.success) {
         // Store token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        toast.showSuccess('Account created successfully!');
-        navigate('/dashboard');
+        if (data.token && data.user && typeof data.user === 'object') {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          toast.showSuccess('Account created successfully!');
+          navigate('/dashboard');
+        } else {
+          toast.showError('Invalid response from server');
+          console.error('Invalid registration response:', data);
+        }
       } else {
         toast.showError(data.error || 'Registration failed');
       }

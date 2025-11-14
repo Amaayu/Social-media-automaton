@@ -5,6 +5,8 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import AIPostPage from './pages/AIPostPage'
+import DualPublishPage from './pages/DualPublishPage'
+import OAuthConfigPage from './pages/OAuthConfigPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import TestSocketIO from './components/TestSocketIO'
 
@@ -36,6 +38,24 @@ function App() {
           element={
             <ProtectedRoute>
               <AIPostPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/dual-publish"
+          element={
+            <ProtectedRoute>
+              <DualPublishPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/oauth-config"
+          element={
+            <ProtectedRoute>
+              <OAuthConfigPage />
             </ProtectedRoute>
           }
         />

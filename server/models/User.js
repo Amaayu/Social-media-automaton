@@ -41,6 +41,23 @@ const userSchema = new mongoose.Schema({
     accountId: String,
     accountName: String,
     appId: String,
+    clientId: String, // OAuth client ID (encrypted)
+    clientSecret: String, // OAuth client secret (encrypted)
+    tokenExpiresAt: Date,
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    lastUpdated: Date
+  },
+  youtubeCredentials: {
+    accessToken: String,
+    refreshToken: String,
+    channelId: String,
+    channelName: String,
+    clientId: String, // OAuth client ID (encrypted)
+    clientSecret: String, // OAuth client secret (encrypted)
+    tokenExpiresAt: Date,
     isActive: {
       type: Boolean,
       default: true

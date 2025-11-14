@@ -12,12 +12,15 @@ const database = require('./config/database');
 const ConfigController = require('./controllers/config.controller');
 const AutomationController = require('./controllers/automation.controller');
 const LogsController = require('./controllers/logs.controller');
+const DualPublishController = require('./controllers/dual-publish.controller');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
 const credentialsRoutes = require('./routes/credentials.routes');
 const postsRoutes = require('./routes/posts.routes');
 const aiPostRoutes = require('./routes/ai-post.routes');
+const createDualPublishRoutes = require('./routes/dual-publish.routes');
+const oauthRoutes = require('./routes/oauth.routes');
 
 // Import middleware
 const { authMiddleware } = require('./middleware/auth.middleware');
@@ -47,6 +50,7 @@ app.set('io', io);
 const configController = new ConfigController();
 const automationController = new AutomationController();
 const logsController = new LogsController();
+const dualPublishController = new DualPublishController(io);
 
 // Middleware
 app.use(express.json());
@@ -109,6 +113,16 @@ app.use('/api/posts', authMiddleware, postsRoutes);
 // AI Post Generation Routes (Protected)
 // ============================================
 app.use('/api/ai-post', authMiddleware, aiPostRoutes);
+
+// ============================================
+// Dual Publishing Routes (Protected)
+// ============================================
+app.use('/api/publish', authMiddleware, createDualPublishRoutes(dualPublishController));
+
+// ============================================
+// OAuth Routes (Protected)
+// ============================================
+app.use('/api/oauth', authMiddleware, oauthRoutes);
 
 // ============================================
 // Configuration Routes (Protected)
@@ -297,6 +311,16 @@ async function initializeAutomation() {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`[Socket.IO] Client connected: ${socket.id}`);
+  
+  // Subscribe to job updates
+  socket.on('subscribe:job', (jobId) => {
+    dualPublishController.subscribeToJob(socket, jobId);
+  });
+  
+  // Unsubscribe from job updates
+  socket.on('unsubscribe:job', (jobId) => {
+    dualPublishController.unsubscribeFromJob(socket, jobId);
+  });
   
   socket.on('disconnect', () => {
     console.log(`[Socket.IO] Client disconnected: ${socket.id}`);

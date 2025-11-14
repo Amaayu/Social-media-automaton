@@ -4,6 +4,7 @@ import ConfigurationPanel from '../components/ConfigurationPanel';
 import AutomationControl from '../components/AutomationControl';
 import ActivityLog from '../components/ActivityLog';
 import { useApp } from '../context/AppContext';
+import { getUser, clearAuth } from '../utils/localStorage';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -13,14 +14,9 @@ const DashboardPage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData && userData !== 'undefined') {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (error) {
-        console.error('Failed to parse user data:', error);
-        localStorage.removeItem('user');
-      }
+    const userData = getUser();
+    if (userData) {
+      setUser(userData);
     }
   }, []);
 
@@ -28,23 +24,23 @@ const DashboardPage = () => {
     try {
       const token = localStorage.getItem('token');
       
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include'
-      });
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          credentials: 'include'
+        });
+      }
 
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuth();
       toast.showSuccess('Logged out successfully');
       navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);
       // Still logout locally even if API call fails
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      clearAuth();
       navigate('/login');
     }
   };
@@ -161,6 +157,18 @@ const DashboardPage = () => {
               >
                 <span>🤖</span> AI Post Generator
               </button>
+              <button
+                onClick={() => navigate('/dual-publish')}
+                className="whitespace-nowrap py-4 px-1 border-b-2 border-transparent text-green-600 hover:text-green-700 hover:border-green-300 font-medium text-sm transition flex items-center gap-2"
+              >
+                <span>🎬</span> Dual Publisher
+              </button>
+              <button
+                onClick={() => navigate('/oauth-config')}
+                className="whitespace-nowrap py-4 px-1 border-b-2 border-transparent text-blue-600 hover:text-blue-700 hover:border-blue-300 font-medium text-sm transition flex items-center gap-2"
+              >
+                <span>🔐</span> OAuth Setup
+              </button>
             </nav>
 
             {/* Mobile Tabs */}
@@ -200,6 +208,18 @@ const DashboardPage = () => {
                 className="flex-1 min-w-fit py-3 px-3 border-b-2 border-transparent text-purple-600 font-medium text-xs transition"
               >
                 🤖 AI Post
+              </button>
+              <button
+                onClick={() => navigate('/dual-publish')}
+                className="flex-1 min-w-fit py-3 px-3 border-b-2 border-transparent text-green-600 font-medium text-xs transition"
+              >
+                🎬 Dual
+              </button>
+              <button
+                onClick={() => navigate('/oauth-config')}
+                className="flex-1 min-w-fit py-3 px-3 border-b-2 border-transparent text-blue-600 font-medium text-xs transition"
+              >
+                🔐 OAuth
               </button>
             </nav>
           </div>

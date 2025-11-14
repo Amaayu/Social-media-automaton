@@ -36,11 +36,15 @@ const LoginPage = () => {
 
       if (data.success) {
         // Store token and user data
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        toast.showSuccess('Login successful!');
-        navigate('/dashboard');
+        if (data.token && data.user && typeof data.user === 'object') {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          toast.showSuccess('Login successful!');
+          navigate('/dashboard');
+        } else {
+          toast.showError('Invalid response from server');
+          console.error('Invalid login response:', data);
+        }
       } else {
         toast.showError(data.error || 'Login failed');
       }
