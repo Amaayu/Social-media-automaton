@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Optional: Set custom API URL for frontend WebSocket connections
+      # Only needed if backend is on a different domain
+      # args:
+      #   - VITE_API_URL=https://api.yourdomain.com
     ports:
       - "3000:3000"
     environment:

@@ -12,7 +12,23 @@ class SocketService {
       return this.socket;
     }
 
-    const serverUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    // Auto-detect server URL based on environment
+    const getServerUrl = () => {
+      // 1. Check for explicit environment variable
+      if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+      }
+      
+      // 2. In production, use the same origin as the frontend
+      if (import.meta.env.PROD) {
+        return window.location.origin;
+      }
+      
+      // 3. In development, use localhost
+      return 'http://localhost:3000';
+    };
+
+    const serverUrl = getServerUrl();
     console.log('[SocketService] Connecting to:', serverUrl);
     
     this.socket = io(serverUrl, {

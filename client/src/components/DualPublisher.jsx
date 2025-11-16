@@ -38,8 +38,25 @@ export default function DualPublisher() {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    // Initialize Socket.IO connection
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    // Initialize Socket.IO connection with auto-detection
+    const getApiUrl = () => {
+      // 1. Check for explicit environment variable
+      if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+      }
+      
+      // 2. In production, use the same origin as the frontend
+      if (import.meta.env.PROD) {
+        return window.location.origin;
+      }
+      
+      // 3. In development, use localhost
+      return 'http://localhost:3000';
+    };
+
+    const API_URL = getApiUrl();
+    console.log('[DualPublisher] Connecting to:', API_URL);
+    
     socketRef.current = io(API_URL, {
       withCredentials: true,
       transports: ['websocket', 'polling']

@@ -5,6 +5,10 @@ FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app/client
 
+# Accept build argument for API URL (optional)
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copy frontend package files
 COPY client/package*.json ./
 
@@ -15,6 +19,7 @@ RUN npm ci
 COPY client/ ./
 
 # Build frontend for production
+# If VITE_API_URL is not set, the app will auto-detect in production
 RUN npm run build
 
 # Stage 2: Setup backend and serve application
