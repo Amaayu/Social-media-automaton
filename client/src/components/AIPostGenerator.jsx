@@ -107,7 +107,11 @@ export default function AIPostGenerator() {
         setPublishingLimit(response.data.limitInfo);
       }
     } catch (error) {
-      console.error('Failed to fetch publishing limit:', error);
+      // Silently handle if Instagram credentials not configured yet
+      // This is expected when user hasn't set up Instagram
+      if (error.response?.data?.message !== 'Instagram credentials not configured') {
+        console.error('Failed to fetch publishing limit:', error);
+      }
     }
   };
 
