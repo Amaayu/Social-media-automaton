@@ -1,10 +1,10 @@
-const CACHE_NAME = 'smath-v1';
+const CACHE_NAME = 'autoflow-v1';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
+  '/icons/icon-192x192.svg',
+  '/icons/icon-512x512.svg'
 ];
 
 // Install event - cache resources
@@ -21,6 +21,11 @@ self.addEventListener('install', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  // Skip caching for chrome-extension and other non-http(s) schemes
+  if (!event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
@@ -40,7 +45,14 @@ self.addEventListener('fetch', (event) => {
 
             caches.open(CACHE_NAME)
               .then((cache) => {
-                cache.put(event.request, responseToCache);
+                // Only cache http(s) requests
+                if (event.request.url.startsWith('http')) {
+                  cache.put(event.request, responseToCache);
+                }
+              })
+              .catch((error) => {
+                // Silently handle cache errors (e.g., chrome-extension schemes)
+                console.log('Cache put failed:', error.message);
               });
 
             return response;
@@ -70,9 +82,9 @@ self.addEventListener('activate', (event) => {
 // Push notification event
 self.addEventListener('push', (event) => {
   const options = {
-    body: event.data ? event.data.text() : 'New notification from SMATH',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-72x72.png',
+    body: event.data ? event.data.text() : 'New notification from AutoFlow',
+    icon: '/icons/icon-192x192.svg',
+    badge: '/icons/icon-72x72.svg',
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),
