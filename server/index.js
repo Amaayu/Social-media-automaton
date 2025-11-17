@@ -26,9 +26,11 @@ const oauthRoutes = require('./routes/oauth.routes');
 const instagramStatusRoutes = require('./routes/instagram-status.routes');
 const statsRoutes = require('./routes/stats.routes');
 const apiConfigRoutes = require('./routes/api-config.routes');
+const debugRoutes = require('./routes/debug.routes');
 
 // Import middleware
 const { authMiddleware } = require('./middleware/auth.middleware');
+const { errorHandler } = require('./middleware/error-handler.middleware');
 
 const app = express();
 const server = http.createServer(app);
@@ -38,7 +40,16 @@ const io = new Server(server, {
       // Allow localhost with any port in development
       if (!origin || origin.startsWith('http://localhost:')) {
         callback(null, true);
-      } else {
+      } 
+      // Allow Render production URL
+      else if (origin === 'https://social-media-automaton.onrender.com') {
+        callback(null, true);
+      }
+      // Allow any origin in production (for flexibility)
+      else if (process.env.NODE_ENV === 'production') {
+        callback(null, true);
+      }
+      else {
         callback(null, false);
       }
     },
@@ -77,13 +88,23 @@ app.use(session({
   }
 }));
 
-// CORS middleware for development
+// CORS middleware for development and production
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  // Allow both 5173 and 5174 (or any localhost port in development)
+  
+  // Allow localhost with any port in development
   if (origin && origin.startsWith('http://localhost:')) {
     res.header('Access-Control-Allow-Origin', origin);
   }
+  // Allow Render production URL
+  else if (origin === 'https://social-media-automaton.onrender.com') {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  // Allow any origin in production (for flexibility)
+  else if (process.env.NODE_ENV === 'production' && origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -159,6 +180,11 @@ app.use('/api/stats', authMiddleware, statsRoutes);
 // API Configuration Routes (Protected)
 // ============================================
 app.use('/api/config', authMiddleware, apiConfigRoutes);
+
+// ============================================
+// Debug Routes (Protected)
+// ============================================
+app.use('/api/debug', authMiddleware, debugRoutes);
 
 // ============================================
 // Configuration Routes (Protected)
@@ -256,22 +282,15 @@ app.use((req, res, next) => {
     return res.status(404).json({
       success: false,
       error: 'API endpoint not found',
-      path: req.path
+      path: req.path,
+      method: req.method
     });
   }
   next();
 });
 
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  
-  res.status(err.status || 500).json({
-    success: false,
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
-});
+// Global error handler (must be last)
+app.use(errorHandler);
 
 // ============================================
 // Server Startup
@@ -282,13 +301,60 @@ async function validateEnvironment() {
   const { ValidationService } = require('./services/encryption.service');
   const AIReplyService = require('./services/ai-reply.service');
   
+  console.log('='.repeat(50));
+  console.log('Environment Variables Check');
+  console.log('='.repeat(50));
+  
+  // Log all ENV variable status
+  const envVars = {
+    MONGODB_URI: !!process.env.MONGODB_URI,
+    ENCRYPTION_KEY: !!process.env.ENCRYPTION_KEY,
+    JWT_SECRET: !!process.env.JWT_SECRET,
+    GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+    INSTAGRAM_CLIENT_ID: !!process.env.INSTAGRAM_CLIENT_ID,
+    INSTAGRAM_CLIENT_SECRET: !!process.env.INSTAGRAM_CLIENT_SECRET,
+    YOUTUBE_CLIENT_ID: !!process.env.YOUTUBE_CLIENT_ID,
+    YOUTUBE_CLIENT_SECRET: !!process.env.YOUTUBE_CLIENT_SECRET,
+    PORT: !!process.env.PORT,
+    NODE_ENV: process.env.NODE_ENV || 'development',
+    FRONTEND_URL: process.env.FRONTEND_URL || 'not set',
+    APP_URL: process.env.APP_URL || 'not set'
+  };
+  
+  Object.entries(envVars).forEach(([key, value]) => {
+    const status = typeof value === 'boolean' ? (value ? '✓' : '✗') : value;
+    console.log(`  ${key}: ${status}`);
+  });
+  
+  // Check for missing critical variables
+  const missingCritical = Object.entries(envVars)
+    .filter(([key, value]) => !value && ['MONGODB_URI', 'ENCRYPTION_KEY', 'JWT_SECRET'].includes(key))
+    .map(([key]) => key);
+  
+  if (missingCritical.length > 0) {
+    console.error('\n✗ Missing critical environment variables:', missingCritical.join(', '));
+    console.error('  Please check your .env file');
+  }
+  
+  // Check for missing optional variables
+  const missingOptional = Object.entries(envVars)
+    .filter(([key, value]) => !value && !['MONGODB_URI', 'ENCRYPTION_KEY', 'JWT_SECRET', 'NODE_ENV', 'FRONTEND_URL', 'APP_URL'].includes(key))
+    .map(([key]) => key);
+  
+  if (missingOptional.length > 0) {
+    console.warn('\n⚠️  Missing optional environment variables:', missingOptional.join(', '));
+    console.warn('  Some features may not work until configured');
+  }
+  
+  console.log('='.repeat(50));
+  
   // Check required variables
   const required = ['ENCRYPTION_KEY'];
   const missing = required.filter(key => !process.env[key]);
   
   if (missing.length > 0) {
-    console.error(`Missing required environment variables: ${missing.join(', ')}`);
-    console.error('Please check your .env file');
+    console.error(`\n✗ Missing required environment variables: ${missing.join(', ')}`);
+    console.error('  Please check your .env file');
     process.exit(1);
   }
   

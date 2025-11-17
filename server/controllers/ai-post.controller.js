@@ -16,21 +16,20 @@ class AIPostController {
    * Generate and publish AI post to Instagram
    */
   async generateAndPublishPost(req, res) {
-    console.log('[AIPostController] generateAndPublishPost called');
-    const userId = req.user?.id;
-    const io = req.app.get('io');
-    
-    console.log('[AIPostController] User ID:', userId);
-    
-    if (!userId) {
-      console.log('[AIPostController] No user ID found');
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      console.log('[AIPostController] generateAndPublishPost called');
+      const userId = req.user?.id;
+      const io = req.app.get('io');
+      
+      console.log('[AIPostController] User ID:', userId);
+      
+      if (!userId) {
+        console.log('[AIPostController] No user ID found');
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
       console.log('[AIPostController] Starting generation process...');
       const {
         accountType,
@@ -73,11 +72,22 @@ class AIPostController {
       const User = require('../models/User');
       const user = await User.findById(userId);
 
-      if (!user || !user.instagramCredentials || !user.instagramCredentials.accessToken) {
+      // Check if Instagram is configured
+      if (!user || !user.instagramCredentials) {
         this.activeGenerations.delete(userId);
-        return res.status(400).json({
+        return res.json({
           success: false,
+          needsConfig: true,
           error: 'Instagram credentials not configured. Please configure them in the Configuration tab.'
+        });
+      }
+
+      if (!user.instagramCredentials.accessToken) {
+        this.activeGenerations.delete(userId);
+        return res.json({
+          success: false,
+          needsConfig: true,
+          error: 'Instagram access token not configured. Please configure it in the Configuration tab.'
         });
       }
 
@@ -359,9 +369,23 @@ class AIPostController {
       });
 
     } catch (error) {
-      this.activeGenerations.delete(userId);
+      const userId = req.user?.id;
+      if (userId) {
+        this.activeGenerations.delete(userId);
+      }
+      
       console.error('[AIPostController] Error:', error);
       console.error('[AIPostController] Error stack:', error.stack);
+      
+      const io = req.app.get('io');
+      if (io && userId) {
+        io.emit(`post-generation:${userId}`, {
+          status: 'error',
+          message: error.message || 'Failed to generate post',
+          progress: 0,
+          error: error.message
+        });
+      }
       
       return res.status(500).json({
         success: false,
@@ -375,37 +399,45 @@ class AIPostController {
    * Get generation status
    */
   async getGenerationStatus(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
+    try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
+      const isGenerating = this.activeGenerations.has(userId);
+
+      return res.json({
+        success: true,
+        isGenerating
+      });
+    } catch (error) {
+      console.error('[AIPostController] Error getting generation status:', error);
+      return res.status(500).json({
         success: false,
-        error: 'User not authenticated'
+        error: 'Failed to get generation status'
       });
     }
-
-    const isGenerating = this.activeGenerations.has(userId);
-
-    return res.json({
-      success: true,
-      isGenerating
-    });
   }
 
   /**
    * Get user's generated posts history
    */
   async getGeneratedPosts(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       const Post = require('../models/post.model');
       const posts = await Post.find({ userId })
         .sort({ createdAt: -1 })
@@ -425,10 +457,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error fetching posts:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to fetch posts'
+        error: 'Failed to fetch posts',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -437,16 +471,16 @@ class AIPostController {
    * Save user account context for personalized post generation
    */
   async saveUserContext(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       const UserContext = require('../models/user-context.model');
       
       // Update or create user context
@@ -476,10 +510,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error saving context:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to save account preferences'
+        error: 'Failed to save account preferences',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -488,16 +524,16 @@ class AIPostController {
    * Get user account context
    */
   async getUserContext(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       const UserContext = require('../models/user-context.model');
       const Post = require('../models/post.model');
       
@@ -537,10 +573,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error fetching context:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to fetch account context'
+        error: 'Failed to fetch account context',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -549,24 +587,34 @@ class AIPostController {
    * Check Instagram publishing rate limit
    */
   async checkPublishingLimit(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       // Get user's Instagram credentials from User model
       const User = require('../models/User');
       const user = await User.findById(userId);
 
-      if (!user || !user.instagramCredentials || !user.instagramCredentials.accessToken) {
-        return res.status(400).json({
-          success: false,
-          error: 'Instagram credentials not configured'
+      // Check if Instagram is configured
+      if (!user || !user.instagramCredentials) {
+        return res.json({
+          success: true,
+          needsConfig: true,
+          message: 'Instagram credentials not configured'
+        });
+      }
+
+      if (!user.instagramCredentials.accessToken || !user.instagramCredentials.accountId) {
+        return res.json({
+          success: true,
+          needsConfig: true,
+          message: 'Instagram credentials incomplete'
         });
       }
 
@@ -584,10 +632,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error checking limit:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to check publishing limit'
+        error: 'Failed to check publishing limit',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -596,17 +646,17 @@ class AIPostController {
    * Delete a post from history
    */
   async deletePost(req, res) {
-    const userId = req.user?.id;
-    const { postId } = req.params;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      const { postId } = req.params;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       const Post = require('../models/post.model');
       
       // Find post and verify ownership
@@ -630,10 +680,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error deleting post:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to delete post'
+        error: 'Failed to delete post',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -642,16 +694,16 @@ class AIPostController {
    * Save and validate Gemini API key
    */
   async saveApiKey(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       const { apiKey } = req.body;
 
       if (!apiKey || typeof apiKey !== 'string') {
@@ -723,10 +775,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error saving API key:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to save API key'
+        error: 'Failed to save API key',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -735,16 +789,16 @@ class AIPostController {
    * Get API key configuration status
    */
   async getApiKeyStatus(req, res) {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not authenticated'
-      });
-    }
-
     try {
+      const userId = req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not authenticated'
+        });
+      }
+
       const User = require('../models/User');
       const user = await User.findById(userId);
 
@@ -762,10 +816,12 @@ class AIPostController {
       });
     } catch (error) {
       console.error('[AIPostController] Error getting API key status:', error);
+      console.error('[AIPostController] Error stack:', error.stack);
       
       return res.status(500).json({
         success: false,
-        error: 'Failed to get API key status'
+        error: 'Failed to get API key status',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }

@@ -131,7 +131,11 @@ class InstagramPublisherService {
       // Make HEAD request to check if image is accessible
       const headResponse = await axios.head(imageUrl, { 
         timeout: 10000,
-        maxRedirects: 5
+        maxRedirects: 5,
+        validateStatus: function (status) {
+          // Accept 2xx and 3xx status codes
+          return status >= 200 && status < 400;
+        }
       });
 
       console.log('[InstagramPublisherService] Image validation:', {
@@ -155,6 +159,16 @@ class InstagramPublisherService {
       return true;
     } catch (error) {
       console.error('[InstagramPublisherService] Image validation failed:', error.message);
+      
+      // Provide specific error messages for common issues
+      if (error.response?.status === 404) {
+        throw new Error(`Image URL not found (404). The image may have been deleted or the URL is incorrect.`);
+      } else if (error.code === 'ENOTFOUND') {
+        throw new Error(`Image URL domain not found. Please check the URL.`);
+      } else if (error.code === 'ETIMEDOUT') {
+        throw new Error(`Image URL request timed out. The server may be slow or unreachable.`);
+      }
+      
       throw new Error(`Image URL validation failed: ${error.message}. Please ensure the URL is publicly accessible and points directly to an image file.`);
     }
   }
