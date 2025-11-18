@@ -17,6 +17,8 @@ AI-powered automatic replies to Instagram comments using MongoDB Atlas and Gemin
 When generating Instagram access tokens, you must use the new scope names:
 - `instagram_business_basic`
 - `instagram_business_manage_comments`
+- `instagram_business_manage_messages`
+- `instagram_business_content_publish`
 
 See [INSTAGRAM_API_SETUP.md](./INSTAGRAM_API_SETUP.md) for complete setup instructions.
 
@@ -331,6 +333,17 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 3. **Required Scopes** (New as of Jan 27, 2025)
    - `instagram_business_basic`
    - `instagram_business_manage_comments`
+   - `instagram_business_manage_messages`
+   - `instagram_business_content_publish`
+
+📜 **Meta Platform Terms & Developer Policy Updates (Effective Feb 3, 2025)**
+
+- Ensure your publicly linked privacy policy is accessible to Meta crawlers (no geo/IP blocking) and clearly lists Instagram/Facebook data usage.
+- Capture and retain explicit user consent before building or augmenting user profiles—even when not acting as a Tech Provider.
+- Maintain an incident-response process that notifies Meta “as soon as practicable” about privacy/security events and complies with all laws.
+- If you operate as a Tech Provider, document how you relay Meta-issued data-subject requests to your clients.
+- Audit experiences for prohibited practices (no malware distribution, no inauthentic account management) and follow Meta’s App Development Guidelines for UX quality.
+- Keep records of consent, policy access, incident notifications, and webhook subscriptions to streamline Meta data-access renewals.
 
 📖 **Detailed Instagram Setup:** See [INSTAGRAM_API_SETUP.md](./INSTAGRAM_API_SETUP.md)
 
