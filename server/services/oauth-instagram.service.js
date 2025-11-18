@@ -41,6 +41,25 @@ class InstagramOAuthService {
   }
 
   /**
+   * Resolve app access token for debug_token requests
+   * Falls back to INSTAGRAM/FACEBOOK env vars when not explicitly provided
+   */
+  _resolveAppAccessToken(providedToken) {
+    if (providedToken) {
+      return providedToken.toString().trim();
+    }
+
+    const clientId = (process.env.INSTAGRAM_CLIENT_ID || process.env.FACEBOOK_APP_ID || '').trim();
+    const clientSecret = (process.env.INSTAGRAM_CLIENT_SECRET || process.env.FACEBOOK_APP_SECRET || '').trim();
+
+    if (clientId && clientSecret) {
+      return `${clientId}|${clientSecret}`;
+    }
+
+    return null;
+  }
+
+  /**
    * Generate OAuth authorization URL
    */
   generateAuthUrl(clientId, redirectUri, state = null) {
@@ -225,7 +244,7 @@ class InstagramOAuthService {
   async validateToken(accessToken, options = {}) {
     try {
       const cleanToken = accessToken?.replace(/\s+/g, '').trim();
-      const appAccessToken = options.appAccessToken?.trim();
+      const appAccessToken = this._resolveAppAccessToken(options.appAccessToken);
 
       console.log('[InstagramOAuth] Validating token...');
       console.log('[InstagramOAuth] Token length:', cleanToken?.length);
@@ -266,6 +285,10 @@ class InstagramOAuthService {
 
       // Step 2: Debug token to validate scopes and expiration
       console.log('[InstagramOAuth] Step 2: Debugging token via debug_token...');
+      if (!appAccessToken) {
+        console.warn('[InstagramOAuth] App access token not configured. Falling back to user token for debug_token request.');
+      }
+
       const debugResponse = await axios.get(this.debugTokenUrl, {
         params: {
           input_token: cleanToken,
@@ -401,8 +424,9 @@ class InstagramOAuthService {
       
       // Sanitize tokens
       const cleanToken = accessToken?.replace(/\s+/g, '').trim();
-      const cleanAppToken = appAccessToken?.replace(/\s+/g, '').trim();
-      
+      const resolvedAppToken = this._resolveAppAccessToken(appAccessToken);
+      const cleanAppToken = resolvedAppToken?.replace(/\s+/g, '').trim();
+
       // Use app access token to debug user access token
       const response = await axios.get(this.debugTokenUrl, {
         params: {
@@ -463,11 +487,12 @@ class InstagramOAuthService {
     try {
       // Sanitize token
       const cleanToken = accessToken?.replace(/\s+/g, '').trim();
-      
+      const appAccessToken = this._resolveAppAccessToken();
+
       const response = await axios.get(this.debugTokenUrl, {
         params: {
           input_token: cleanToken,
-          access_token: cleanToken
+          access_token: appAccessToken || cleanToken
         }
       });
 
