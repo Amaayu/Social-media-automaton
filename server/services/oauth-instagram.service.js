@@ -289,15 +289,42 @@ class InstagramOAuthService {
         console.warn('[InstagramOAuth] App access token not configured. Falling back to user token for debug_token request.');
       }
 
-      const debugResponse = await axios.get(this.debugTokenUrl, {
-        params: {
-          input_token: cleanToken,
-          access_token: appAccessToken || cleanToken
-        }
-      });
+      let debugData = null;
+      let scopes = [];
+      let expiresAt = null;
+      let dataAccessExpiresAt = null;
 
-      const debugData = debugResponse.data.data;
-      const scopes = debugData.scopes || [];
+      try {
+        const debugResponse = await axios.get(this.debugTokenUrl, {
+          params: {
+            input_token: cleanToken,
+            access_token: appAccessToken || cleanToken
+          }
+        });
+
+        debugData = debugResponse.data.data;
+        scopes = debugData.scopes || [];
+        expiresAt = debugData.expires_at ?? null;
+        dataAccessExpiresAt = debugData.data_access_expires_at ?? null;
+      } catch (debugError) {
+        const metaError = debugError.response?.data?.error;
+        const metaMessage = metaError?.message || debugError.message;
+        const metaCode = metaError?.code;
+
+        console.warn('[InstagramOAuth] debug_token request failed:', {
+          code: metaCode,
+          message: metaMessage
+        });
+
+        const isMetaSystemError = metaCode === 190 && metaMessage?.includes('Cannot get application info');
+        if (!isMetaSystemError) {
+          throw debugError;
+        }
+
+        console.warn('[InstagramOAuth] Continuing without debug_token data due to Meta system error. Assuming required scopes.');
+        scopes = [...this.requiredScopes];
+      }
+
       const hasRequiredScopes = this.requiredScopes.every(scope => scopes.includes(scope));
 
       if (!hasRequiredScopes) {
@@ -314,8 +341,8 @@ class InstagramOAuthService {
         mediaCount,
         accountType: profileResponse.data.account_type || null,
         scopes,
-        expiresAt: debugData.expires_at,
-        dataAccessExpiresAt: debugData.data_access_expires_at
+        expiresAt,
+        dataAccessExpiresAt
       };
     } catch (error) {
       console.error('[InstagramOAuth] Token validation error:', {
