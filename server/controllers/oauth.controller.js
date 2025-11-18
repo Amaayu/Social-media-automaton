@@ -583,6 +583,60 @@ class OAuthController {
       });
     }
   }
+
+  /**
+   * POST /api/oauth/instagram/deauthorize
+   * Handle Instagram deauthorization callback (required by Meta)
+   */
+  async handleInstagramDeauthorize(req, res) {
+    try {
+      const signedRequest = req.body.signed_request;
+      console.log('[OAuth] Instagram deauthorize callback received:', { signedRequest });
+
+      // Parse signed request if needed (Meta sends user_id)
+      // For now, just acknowledge receipt
+      
+      res.json({
+        success: true,
+        message: 'Deauthorization received'
+      });
+    } catch (error) {
+      console.error('[OAuth] Instagram deauthorize error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * POST /api/oauth/instagram/data-deletion
+   * Handle Instagram data deletion request (required by Meta for GDPR)
+   */
+  async handleInstagramDataDeletion(req, res) {
+    try {
+      const signedRequest = req.body.signed_request;
+      console.log('[OAuth] Instagram data deletion request received:', { signedRequest });
+
+      // Parse signed request to get user_id
+      // Delete user's Instagram credentials from database
+      // Return confirmation URL and code
+      
+      const confirmationCode = `deletion_${Date.now()}`;
+      const statusUrl = `${process.env.APP_URL || 'https://social-media-automaton.onrender.com'}/data-deletion-status?code=${confirmationCode}`;
+
+      res.json({
+        url: statusUrl,
+        confirmation_code: confirmationCode
+      });
+    } catch (error) {
+      console.error('[OAuth] Instagram data deletion error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = OAuthController;

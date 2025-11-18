@@ -17,6 +17,15 @@ router.post('/instagram/refresh', (req, res) => {
   oauthController.refreshInstagramToken(req, res);
 });
 
+// Instagram compliance endpoints (required by Meta)
+router.post('/instagram/deauthorize', (req, res) => {
+  oauthController.handleInstagramDeauthorize(req, res);
+});
+
+router.post('/instagram/data-deletion', (req, res) => {
+  oauthController.handleInstagramDataDeletion(req, res);
+});
+
 // YouTube OAuth routes
 router.get('/youtube/auth-url', (req, res) => {
   oauthController.getYouTubeAuthUrl(req, res);
