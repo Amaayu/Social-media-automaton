@@ -22,7 +22,7 @@ class DualPublisherService {
     this.ffmpegService = new FFmpegService();
     this.uploadDir = path.join(__dirname, '../uploads');
     this.processedDir = path.join(__dirname, '../processed');
-    
+
     // Ensure directories exist
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
@@ -54,7 +54,7 @@ class DualPublisherService {
    */
   async createJob(userId, videoFile, contextText, aiProviders) {
     const jobId = crypto.randomBytes(16).toString('hex');
-    
+
     // Save video file temporarily
     const videoFilename = `${jobId}_${Date.now()}.mp4`;
     const videoPath = path.join(this.uploadDir, videoFilename);
@@ -146,17 +146,20 @@ class DualPublisherService {
       throw new Error('Job not found');
     }
 
+    const filesToCleanup = [];
+
     try {
       job.status = 'processing';
       await job.save();
 
       const videoPath = path.join(this.uploadDir, job.videoFilename);
+      filesToCleanup.push(videoPath);
 
       // Step 1: Validate video
       await this.updateProgress(jobId, 'validate_video', 'processing');
-      
+
       const validation = await this.ffmpegService.validateVideo(videoPath);
-      
+
       if (!validation.valid) {
         throw new Error(`Video validation failed: ${validation.errors.join(', ')}`);
       }
@@ -168,7 +171,7 @@ class DualPublisherService {
 
       // Step 2: Process video for both platforms
       await this.updateProgress(jobId, 'process_video', 'processing');
-      
+
       const processOptions = {
         convertInstagram: true,
         convertYouTube: true,
@@ -181,6 +184,12 @@ class DualPublisherService {
         this.processedDir,
         processOptions
       );
+
+      // Track processed files for cleanup
+      if (processed.instagram) filesToCleanup.push(processed.instagram.outputPath);
+      if (processed.youtube) filesToCleanup.push(processed.youtube.outputPath);
+      if (processed.thumbnail) filesToCleanup.push(processed.thumbnail.outputPath);
+      if (processed.preview) filesToCleanup.push(processed.preview.outputPath);
 
       if (processed.errors.length > 0) {
         // Emit errors via websocket but continue if we have at least one successful conversion
@@ -202,7 +211,7 @@ class DualPublisherService {
 
       // Execute LangGraph workflow for content generation
       await this.updateProgress(jobId, 'generate_content', 'processing');
-      
+
       const contentGraph = new ContentGenerationGraphService(job.userId);
       const graphResult = await contentGraph.execute(job.contextText, job.aiProviders);
 
@@ -232,17 +241,17 @@ class DualPublisherService {
           (async () => {
             try {
               await this.updateProgress(jobId, 'publish_instagram', 'processing');
-              
+
               const igVideoPath = processed.instagram.outputPath;
               const videoBuffer = fs.readFileSync(igVideoPath);
-              
+
               // Use cover image if available
               let coverUrl = null;
               if (processed.thumbnail) {
                 try {
                   const thumbnailBuffer = fs.readFileSync(processed.thumbnail.outputPath);
                   coverUrl = await this.instagramService.uploadImageToPublicServer(
-                    thumbnailBuffer, 
+                    thumbnailBuffer,
                     path.basename(processed.thumbnail.outputPath)
                   );
                 } catch (err) {
@@ -250,7 +259,7 @@ class DualPublisherService {
                   // Continue without cover image
                 }
               }
-              
+
               // Publish as Instagram Reel
               const result = await this.instagramService.publishReel(
                 videoBuffer,
@@ -269,7 +278,7 @@ class DualPublisherService {
                   apiResponse: result.publishResponse
                 }
               });
-              
+
               // Emit socket event for successful Instagram publish
               this.io.to(`job:${jobId}`).emit('publish:instagram:done', {
                 jobId,
@@ -277,7 +286,7 @@ class DualPublisherService {
                 permalink: result.permalink,
                 mediaType: result.mediaType
               });
-              
+
             } catch (error) {
               await this.updateProgress(jobId, 'publish_instagram', 'failed', {
                 instagram: {
@@ -285,7 +294,7 @@ class DualPublisherService {
                   error: error.message
                 }
               });
-              
+
               // Emit socket event for failed Instagram publish
               this.io.to(`job:${jobId}`).emit('publish:instagram:error', {
                 jobId,
@@ -302,10 +311,10 @@ class DualPublisherService {
           (async () => {
             try {
               await this.updateProgress(jobId, 'publish_youtube', 'processing');
-              
+
               const ytVideoPath = processed.youtube.outputPath;
               const youtubePayload = graphResult.platformPayloads.youtube;
-              
+
               // Upload with progress tracking
               const result = await this.youtubeService.uploadVideo(
                 ytVideoPath,
@@ -340,7 +349,7 @@ class DualPublisherService {
                   apiResponse: result.apiResponse
                 }
               });
-              
+
               // Emit socket event for successful YouTube publish
               this.io.to(`job:${jobId}`).emit('publish:youtube:done', {
                 jobId,
@@ -348,7 +357,7 @@ class DualPublisherService {
                 url: result.url,
                 title: result.title
               });
-              
+
             } catch (error) {
               await this.updateProgress(jobId, 'publish_youtube', 'failed', {
                 youtube: {
@@ -356,7 +365,7 @@ class DualPublisherService {
                   error: error.message
                 }
               });
-              
+
               // Emit socket event for failed YouTube publish
               this.io.to(`job:${jobId}`).emit('publish:youtube:error', {
                 jobId,
@@ -386,19 +395,6 @@ class DualPublisherService {
       job.completedAt = new Date();
       await job.save();
 
-      // Cleanup video files
-      try {
-        const filesToCleanup = [videoPath];
-        if (processed.instagram) filesToCleanup.push(processed.instagram.outputPath);
-        if (processed.youtube) filesToCleanup.push(processed.youtube.outputPath);
-        if (processed.thumbnail) filesToCleanup.push(processed.thumbnail.outputPath);
-        if (processed.preview) filesToCleanup.push(processed.preview.outputPath);
-        
-        await this.ffmpegService.cleanup(filesToCleanup);
-      } catch (err) {
-        console.error('[DualPublisher] Failed to cleanup video files:', err);
-      }
-
       return job;
 
     } catch (error) {
@@ -407,6 +403,15 @@ class DualPublisherService {
       job.error = error.message;
       await job.save();
       throw error;
+    } finally {
+      // Cleanup video files
+      try {
+        if (filesToCleanup.length > 0) {
+          await this.ffmpegService.cleanup(filesToCleanup);
+        }
+      } catch (err) {
+        console.error('[DualPublisher] Failed to cleanup video files:', err);
+      }
     }
   }
 

@@ -3,7 +3,7 @@
 
 services:
   app:
-    image: yourusername/instagram-automation:latest
+    image: aayu337/social-media-automaton:latest
     container_name: instagram-automation
     ports:
       - "3000:3000"
@@ -29,4 +29,4 @@ services:
       start_period: 40s
 
 # Note: Replace 'yourusername' with your actual Docker Hub username
-# Example: image: johndoe/instagram-automation:latest
+# Example: image: aayu337/social-media-automaton:latest
